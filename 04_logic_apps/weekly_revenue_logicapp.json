@@ -1,1 +1,88 @@
+{
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+      "FUNCTION_KEY": {
+        "type": "SecureString"
+      },
+      "$connections": {
+        "type": "Object",
+        "defaultValue": {}
+      }
+    },
+    "triggers": {
+      "Recurrence": {
+        "type": "Recurrence",
+        "recurrence": {
+          "interval": 1,
+          "frequency": "Week",
+          "timeZone": "America/New_York",
+          "schedule": {
+            "weekDays": ["Monday"],
+            "hours": [9],
+            "minutes": [0]
+          }
+        }
+      }
+    },
+    "actions": {
+      "GetWeekly": {
+        "type": "Http",
+        "inputs": {
+          "method": "GET",
+          "uri": "https://weekly-revenue-a3dsd3a7gwb4fbb4.eastus2-01.azurewebsites.net/api/weekly_revenue",
+          "headers": {
+            "x-functions-key": "@{parameters('FUNCTION_KEY')}"
+          },
+          "queries": {
+            "as_of": "2025-10-20"
+          }
+        },
+        "runAfter": {},
+        "runtimeConfiguration": {
+          "contentTransfer": { "transferMode": "Chunked" }
+        }
+      },
+      "Send_an_email_(V2)": {
+        "type": "ApiConnection",
+        "inputs": {
+          "host": {
+            "connection": {
+              "name": "@parameters('$connections')['outlook']['connectionId']"
+            }
+          },
+          "method": "post",
+          "path": "/v2/Mail",
+          "body": {
+            "To": "diegoyasnor@gmail.com",
+            "Subject": "@{coalesce(outputs('GetWeekly')?['body']?['subject'], 'Weekly Revenue Report')}",
+            "Body": "@{coalesce(outputs('GetWeekly')?['body']?['html'], '<p>(sin contenido)</p>')}",
+            "Attachments": [
+              {
+                "Name": "@{concat('weekly_revenue_', outputs('GetWeekly')?['body']?['window']?['week_start'], '_', outputs('GetWeekly')?['body']?['window']?['week_end'], '.csv')}",
+                "ContentBytes": "@{if(empty(outputs('GetWeekly')?['body']?['csv_base64']), null, base64ToBinary(outputs('GetWeekly')?['body']?['csv_base64']))}"
+              }
+            ]
+          }
+        },
+        "runAfter": {
+          "GetWeekly": ["Succeeded"]
+        }
+      }
+    },
+    "outputs": {}
+  },
+  "parameters": {
+    "$connections": {
+      "value": {
+        "outlook": {
+          "connectionId": "/subscriptions/3f127402-cccc-4915-9282-87c244c4c337/resourceGroups/weekly-revenue-report-logicapp_group/providers/Microsoft.Web/connections/outlook",
+          "connectionName": "outlook",
+          "id": "/subscriptions/3f127402-cccc-4915-9282-87c244c4c337/providers/Microsoft.Web/locations/eastus/managedApis/outlook"
+        }
+      }
+    }
+  }
+}
 
