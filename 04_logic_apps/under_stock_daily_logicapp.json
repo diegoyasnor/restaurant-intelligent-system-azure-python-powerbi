@@ -1,1 +1,128 @@
 
+{
+    "definition": {
+        "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+        "contentVersion": "1.0.0.0",
+        "triggers": {
+            "Recurrence": {
+                "type": "Recurrence",
+                "description": "Daily trigger for the automated UNDER_STOCK alert workflow. Pulls data from Azure SQL view dw v_under_stock_email.",
+                "recurrence": {
+                    "interval": 1,
+                    "frequency": "Day",
+                    "timeZone": "Eastern Standard Time",
+                    "schedule": {
+                        "hours": [
+                            8,
+                            17
+                        ],
+                        "minutes": [
+                            10
+                        ]
+                    }
+                }
+            }
+        },
+        "actions": {
+            "Get_rows_(V2)": {
+                "type": "ApiConnection",
+                "inputs": {
+                    "host": {
+                        "connection": {
+                            "name": "@parameters('$connections')['sql']['connectionId']"
+                        }
+                    },
+                    "method": "get",
+                    "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('default'))},@{encodeURIComponent(encodeURIComponent('default'))}/tables/@{encodeURIComponent(encodeURIComponent('[dw].[v_under_stock_email]'))}/items"
+                },
+                "runAfter": {}
+            },
+            "Condition": {
+                "type": "If",
+                "expression": {
+                    "and": [
+                        {
+                            "greater": [
+                                "@length(body('Get_rows_(V2)')?['value'])\r\n",
+                                0
+                            ]
+                        }
+                    ]
+                },
+                "actions": {
+                    "Create_HTML_table": {
+                        "type": "Table",
+                        "inputs": {
+                            "from": "@body('Get_rows_(V2)')?['value']",
+                            "format": "HTML"
+                        }
+                    },
+                    "Compose": {
+                        "type": "Compose",
+                        "inputs": "<html>\n  <body style=\"font-family:Segoe UI, Arial; font-size:13px;\">\n    <h2>🚨 UNDER_STOCK Report</h2>\n    <p>Se encontraron productos por debajo del mínimo.</p>\n    @{outputs('Create_HTML_table')}\n    <p style=\"color:#888;\">Enviado automáticamente por Logic Apps.</p>\n  </body>\n</html>\n\n",
+                        "runAfter": {
+                            "Create_HTML_table": [
+                                "Succeeded"
+                            ]
+                        }
+                    },
+                    "Send_an_email_(V2)": {
+                        "type": "ApiConnection",
+                        "inputs": {
+                            "host": {
+                                "connection": {
+                                    "name": "@parameters('$connections')['outlook']['connectionId']"
+                                }
+                            },
+                            "method": "post",
+                            "body": {
+                                "To": "diegoyasnor@gmail.com",
+                                "Subject": "🚨 UNDER_STOCK – @{formatDateTime(utcNow(),'yyyy-MM-dd HH:mm')}\n",
+                                "Body": "<p class=\"editor-paragraph\">@{body('Create_HTML_table')}</p>",
+                                "Importance": "Normal"
+                            },
+                            "path": "/v2/Mail"
+                        },
+                        "runAfter": {
+                            "Compose": [
+                                "Succeeded"
+                            ]
+                        }
+                    }
+                },
+                "else": {
+                    "actions": {}
+                },
+                "runAfter": {
+                    "Get_rows_(V2)": [
+                        "Succeeded"
+                    ]
+                }
+            }
+        },
+        "outputs": {},
+        "parameters": {
+            "$connections": {
+                "type": "Object",
+                "defaultValue": {}
+            }
+        }
+    },
+    "parameters": {
+        "$connections": {
+            "type": "Object",
+            "value": {
+                "sql": {
+                    "id": "/subscriptions/3f127402-cccc-4915-9282-87c244c4c337/providers/Microsoft.Web/locations/northcentralus/managedApis/sql",
+                    "connectionId": "/subscriptions/3f127402-cccc-4915-9282-87c244c4c337/resourceGroups/la-understock-alert_group/providers/Microsoft.Web/connections/sql",
+                    "connectionName": "sql"
+                },
+                "outlook": {
+                    "id": "/subscriptions/3f127402-cccc-4915-9282-87c244c4c337/providers/Microsoft.Web/locations/northcentralus/managedApis/outlook",
+                    "connectionId": "/subscriptions/3f127402-cccc-4915-9282-87c244c4c337/resourceGroups/la-understock-alert_group/providers/Microsoft.Web/connections/outlook",
+                    "connectionName": "outlook"
+                }
+            }
+        }
+    }
+}
