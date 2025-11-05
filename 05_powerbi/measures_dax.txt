@@ -1,0 +1,52 @@
+-------------------------------
+Power BI DAX Measures
+Project: Restaurant Intelligence Dashboard
+-------------------------------
+
+Total Revenue =
+SUM(fact_sales[line_revenue_usd])
+
+Total Quantity Sold =
+SUM(fact_sales[qty_sold])
+
+Average Unit Price =
+AVERAGE(fact_sales[unit_price_usd])
+
+Revenue MTD =
+CALCULATE(
+    [Total Revenue],
+    DATESMTD('Date'[order_date])
+)
+
+Revenue YTD =
+CALCULATE(
+    [Total Revenue],
+    DATESYTD('Date'[order_date])
+)
+
+Top 10 Products by Revenue =
+TOPN(
+    10,
+    VALUES(dim_product[product_name]),
+    [Total Revenue],
+    DESC
+)
+
+Revenue by Store =
+SUMMARIZE(
+    dim_store,
+    dim_store[store_name],
+    "TotalRevenue", [Total Revenue]
+)
+
+Understock Alert Count =
+COUNTROWS(
+    FILTER(v_inventory_status, v_inventory_status[below_reorder] = TRUE())
+)
+
+-------------------------------
+Notes:
+- Measures created for direct use with Azure SQL (DirectQuery mode)
+- Currency format: USD, 2 decimals
+- Time intelligence uses 'Date' table connected to order_date
+-------------------------------
